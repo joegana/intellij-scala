@@ -3,6 +3,7 @@ package lang
 package psi
 package types
 
+import gnu.trove.TObjectIntHashMap
 import org.jetbrains.plugins.scala.lang.psi.api.statements.params.{ScTypeParam, TypeParamId}
 import org.jetbrains.plugins.scala.lang.psi.types.api._
 import org.jetbrains.plugins.scala.lang.psi.types.nonvalue._
@@ -175,6 +176,13 @@ object ScExistentialType {
   }
 
   private def simplify(quantified: ScType, wildcards: List[ScExistentialArgument], visitedQ: Set[ScType] = Set.empty): Option[ScType] = {
+    val occurrences = new TObjectIntHashMap[ScExistentialArgument](/*initialCapacity*/ 4)
+    quantified.visitRecursively {
+      case arg: ScExistentialArgument =>
+        occurrences.put(arg, occurrences.get(arg) + 1)
+      case _ =>
+    }
+
     quantified match {
       case arg: ScExistentialArgument =>
         //shortcut for the fourth rule, toplevel position is covariant
@@ -191,18 +199,26 @@ object ScExistentialType {
     var updated = false
 
     def argOrBound(variance: Variance, arg: ScExistentialArgument, args: Seq[ScType] = Seq.empty): ScType = {
+
       def withArgs(tp: ScType, args: Seq[ScType]) = tp match {
         case ScParameterizedType(des, oldArgs) if oldArgs.size == args.size => ScParameterizedType(des, args)
         case _ => tp
       }
+
+      //not mentioned in SLS, see scala.reflect.internal.tpe.TypeMaps.ExistentialExtrapolation.apply
+      if (occurrences.get(arg) != 1) return arg
 
       variance match {
         case Covariant =>
           updated = true
           withArgs(arg.upper, args)
         case Contravariant =>
-          updated = true
-          withArgs(arg.lower, args)
+          val lower = arg.lower
+          if (lower.isNothing) arg //see scala.reflect.internal.tpe.TypeMaps.ExistentialExtrapolation.apply
+          else {
+            updated = true
+            withArgs(arg.lower, args)
+          }
         case _ =>
           arg
       }
@@ -223,6 +239,7 @@ object ScExistentialType {
 
       case _ => ProcessSubtypes
     }
+
 
     val simplifiedQ = quantified.recursiveVarianceUpdate(argsToBounds, Invariant)
 

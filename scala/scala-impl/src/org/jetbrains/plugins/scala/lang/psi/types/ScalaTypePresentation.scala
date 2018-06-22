@@ -185,27 +185,32 @@ trait ScalaTypePresentation extends api.TypePresentation {
           existentialArgWithBounds(wildcard, s"type ${wildcard.name}")
         }.mkString(" forSome {", "; ", "}")
 
-      existentialType match {
+      val existentialToPrint =
+        existentialType.simplify()
+          .asOptionOf[ScExistentialType]
+          .getOrElse(existentialType)
+
+      existentialToPrint match {
         case ScExistentialType(q, Seq(w)) if checkWildcard =>
           if (q == w) placeholder(w)
-          else existentialTypeText(existentialType, checkWildcard = false, stable)
+          else existentialTypeText(existentialToPrint, checkWildcard = false, stable)
         case ScExistentialType(quant @ ParameterizedType(des, typeArgs), wildcards) =>
           val usedMoreThanOnce = ScExistentialArgument.usedMoreThanOnce(quant)
 
           def mayBePlaceholder(arg: ScExistentialArgument): Boolean =
             !usedMoreThanOnce(arg) && typeArgs.contains(arg) && arg.typeParameters.isEmpty
 
-          val (placeholders, namedWildcards) = wildcards.partition(mayBePlaceholder)
+          val mayUseOnlyPlaceholders = wildcards.forall(mayBePlaceholder)
 
           val typeArgsText = typeArgs.map {
-            case arg: ScExistentialArgument  => if (placeholders.contains(arg)) placeholder(arg) else arg.name
+            case arg: ScExistentialArgument  => if (mayUseOnlyPlaceholders) placeholder(arg) else arg.name
             case t                           => innerTypeText(t, needDotType = true, checkWildcard)
           }.mkString("[", ", ", "]")
 
           val prefix = s"${innerTypeText(des)}$typeArgsText"
 
-          if (namedWildcards.isEmpty) prefix
-          else s"($prefix)${namedExistentials(namedWildcards)}"
+          if (mayUseOnlyPlaceholders) prefix
+          else s"$prefix${namedExistentials(wildcards)}"
         case ex: ScExistentialType =>
           s"(${innerTypeText(ex.quantified)})${namedExistentials(ex.wildcards)}"
       }
