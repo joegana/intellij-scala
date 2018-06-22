@@ -189,6 +189,25 @@ object ScExistentialType {
     if (wildcards.isEmpty) return Some(quantified)
 
     var updated = false
+
+    def argOrBound(variance: Variance, arg: ScExistentialArgument, args: Seq[ScType] = Seq.empty): ScType = {
+      def withArgs(tp: ScType, args: Seq[ScType]) = tp match {
+        case ScParameterizedType(des, oldArgs) if oldArgs.size == args.size => ScParameterizedType(des, args)
+        case _ => tp
+      }
+
+      variance match {
+        case Covariant =>
+          updated = true
+          withArgs(arg.upper, args)
+        case Contravariant =>
+          updated = true
+          withArgs(arg.lower, args)
+        case _ =>
+          arg
+      }
+    }
+
     //fourth rule
     val argsToBounds: (ScType, Variance) => AfterUpdate = {
       case (ex: ScExistentialType, _) =>
@@ -196,19 +215,12 @@ object ScExistentialType {
           updated = true
         }
         ReplaceWith(ex.simplify())
-      case (arg: ScExistentialArgument, variance) =>
-        //fourth rule
-        val argOrBound = variance match {
-          case Covariant =>
-            updated = true
-            arg.upper
-          case Contravariant =>
-            updated = true
-            arg.lower
-          case _ =>
-            arg
-        }
-        ReplaceWith(argOrBound)
+
+      case (ScParameterizedType(exArg: ScExistentialArgument, args), variance) =>
+        ReplaceWith(argOrBound(variance, exArg, args))
+      case (exArg: ScExistentialArgument, variance) =>
+        ReplaceWith(argOrBound(variance, exArg))
+
       case _ => ProcessSubtypes
     }
 

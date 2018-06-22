@@ -119,7 +119,7 @@ case class MostSpecificUtil(elem: PsiElement, length: Int) {
         def calcParams(tp: ScType, existential: Boolean): Either[Seq[Parameter], ScType] = {
 
           def toExistentialArg(tp: TypeParameter) =
-            ScExistentialArgument(tp.name, List.empty /* todo? */ , tp.lowerType, tp.upperType)
+            ScExistentialArgument(tp.name, tp.typeParameters, tp.lowerType, tp.upperType)
 
           tp match {
             case ScMethodType(_, params, _) => Left(params)

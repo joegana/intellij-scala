@@ -148,6 +148,31 @@ class ImplicitParametersAnnotatorHeavyTest extends ScalaLightCodeInsightFixtureT
     """.stripMargin
   )
 
+  def testScalaJsUnionEvidence(): Unit = checkTextHasNoErrors(
+    """
+      |sealed trait Evidence[-A, +B]
+      |
+      |private object ReusableEvidence extends Evidence[scala.Any, scala.Any]
+      |
+      |abstract sealed class EvidenceLowestPrioImplicits {
+      |
+      |  implicit def covariant[F[+ _], A, B](implicit ev: Evidence[A, B]): Evidence[F[A], F[B]] =
+      |    ReusableEvidence.asInstanceOf[Evidence[F[A], F[B]]]
+      |
+      |  implicit def contravariant[F[- _], A, B](implicit ev: Evidence[B, A]): Evidence[F[A], F[B]] =
+      |    ReusableEvidence.asInstanceOf[Evidence[F[A], F[B]]]
+      |}
+      |
+      |object Evidence extends EvidenceLowestPrioImplicits {
+      |
+      |  implicitly[Evidence[Seq[String], Seq[String]]]
+      |
+      |  implicit def base[A]: Evidence[A, A] =
+      |    ReusableEvidence.asInstanceOf[Evidence[A, A]]
+      |}
+    """.stripMargin
+  )
+
 }
 
 class ImplicitParameterFailingTest extends ScalaLightCodeInsightFixtureTestAdapter {
@@ -197,29 +222,4 @@ class ImplicitParameterFailingTest extends ScalaLightCodeInsightFixtureTestAdapt
       |    }
       |}
     """.stripMargin)
-
-  def testScalaJsUnionEvidence(): Unit = checkTextHasNoErrors(
-    """
-      |sealed trait Evidence[-A, +B]
-      |
-      |private object ReusableEvidence extends Evidence[scala.Any, scala.Any]
-      |
-      |abstract sealed class EvidenceLowestPrioImplicits {
-      |
-      |  implicit def covariant[F[+ _], A, B](implicit ev: Evidence[A, B]): Evidence[F[A], F[B]] =
-      |    ReusableEvidence.asInstanceOf[Evidence[F[A], F[B]]]
-      |
-      |  implicit def contravariant[F[- _], A, B](implicit ev: Evidence[B, A]): Evidence[F[A], F[B]] =
-      |    ReusableEvidence.asInstanceOf[Evidence[F[A], F[B]]]
-      |}
-      |
-      |object Evidence extends EvidenceLowestPrioImplicits {
-      |
-      |  implicitly[Evidence[Seq[String], Seq[String]]]
-      |
-      |  implicit def base[A]: Evidence[A, A] =
-      |    ReusableEvidence.asInstanceOf[Evidence[A, A]]
-      |}
-    """.stripMargin
-  )
 }
